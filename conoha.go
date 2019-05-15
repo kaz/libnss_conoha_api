@@ -1,21 +1,58 @@
 package main
 
 import (
+	"encoding/gob"
+	"net"
+	"os"
 	"strings"
 )
 
-func lookup(host string, v6 bool) []string {
-	if !strings.HasSuffix(host, ".conoha") {
+const (
+	DOMAIN     = ".conoha"
+	CACHE_PATH = "/var/cache/nss_conoha_cache"
+)
+
+func LookupInstance(host string, v6 bool) []string {
+	if !strings.HasSuffix(host, DOMAIN) {
 		return nil
 	}
-	if v6 {
-		return []string{
-			string([]byte{1, 1, 4, 5, 1, 4, 1, 9, 1, 9, 8, 1, 0, 8, 9, 3}),
-			string([]byte{1, 1, 4, 5, 1, 4, 1, 9, 1, 9, 8, 1, 0, 8, 9, 30}),
+	host = strings.TrimSuffix(host, DOMAIN)
+
+	cli := &ConohaClient{}
+	cache, _ := os.Open(CACHE_PATH)
+	if err := gob.NewDecoder(cache).Decode(cli); err != nil {
+		cli, err = NewClient(os.Getenv("NSS_CONOHA_REGION"), os.Getenv("NSS_CONOHA_TENANT_ID"), os.Getenv("NSS_CONOHA_USERNAME"), os.Getenv("NSS_CONOHA_PASSWORD"))
+		if err != nil {
+			return nil
+		}
+
+		cache, _ = os.Create(CACHE_PATH)
+		if err := gob.NewEncoder(cache).Encode(cli); err != nil {
+			return nil
 		}
 	}
-	return []string{
-		string([]byte{1, 14, 5, 14}),
-		string([]byte{1, 14, 5, 140}),
+
+	servers, err := cli.Servers()
+	if err != nil {
+		return nil
 	}
+
+	result := make([]string, 0, 1)
+	for _, srv := range servers {
+		if srv.Metadata.Tag == host {
+			for _, addrs := range srv.Addresses {
+				for _, addr := range addrs {
+					ipaddr := net.ParseIP(addr.Addr)
+					if !v6 && addr.Version == 4 {
+						result = append(result, string(ipaddr[len(ipaddr)-4:]))
+					}
+					if v6 && addr.Version == 6 {
+						result = append(result, string(ipaddr))
+					}
+				}
+			}
+		}
+	}
+
+	return result
 }

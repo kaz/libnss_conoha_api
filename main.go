@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	addrs, err := net.LookupIP("narusejun.com.conoha")
+	addrs, err := net.LookupIP("mmk.conoha")
 	if err != nil {
 		panic(err)
 	}

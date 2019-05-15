@@ -20,7 +20,7 @@ func _nss_conoha_gethostbyname2_r(name *C.char, af C.int, ret *C.struct_hostent,
 		return C.NSS_STATUS_NOTFOUND
 	}
 
-	result := lookup(C.GoString(name), af == C.AF_INET6)
+	result := LookupInstance(C.GoString(name), af == C.AF_INET6)
 	if result == nil {
 		return C.NSS_STATUS_NOTFOUND
 	}
